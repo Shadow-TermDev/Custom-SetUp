@@ -1,0 +1,20 @@
+#!/bin/bash
+# 🚀 webserve - Servidor web rápido + túnel público con localhost.run
+
+PORT=${1:-5000}  # Puedes pasar el puerto como argumento (por defecto 5000)
+DIR=$(pwd)
+
+echo "🌐 Iniciando servidor en: $DIR"
+python -m http.server "$PORT" > /dev/null 2>&1 & SERVER_PID=$!
+sleep 2
+
+echo "🔗 Creando túnel público..."
+echo "Presiona Ctrl + C para salir cuando termines."
+ssh -R 80:127.0.0.1:$PORT nokey@localhost.run
+
+# Cuando salgas del túnel:
+echo "🛑 Cerrando servidor local..."
+kill $SERVER_PID
+
+
+
