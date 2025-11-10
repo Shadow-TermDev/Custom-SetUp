@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# 🌌 Termux Setup Script by Shafow-TermDev
+# 🌌 Termux Setup Script by Shadow-TermDev
 # Instalador automatizado para entornos de desarrollo en Termux
 
 set -e
