@@ -1,20 +1,49 @@
-#!/bin/bash
-# 🚀 webserve - Servidor web rápido + túnel público con localhost.run
+#!/usr/bin/env bash
+# webserve - Servidor local + túnel público (localhost.run / ngrok)
+# Universal: funciona en cualquier entorno
 
-PORT=${1:-5000}  # Puedes pasar el puerto como argumento (por defecto 5000)
-DIR=$(pwd)
+set -e
 
-echo "🌐 Iniciando servidor en: $DIR"
-python -m http.server "$PORT" > /dev/null 2>&1 & SERVER_PID=$!
+# --- Configuración ---
+PORT=${1:-5000}
+DIR="$(pwd)"
+TUNNEL_CMD=""
+
+# --- Detectar herramientas ---
+if command -v python3 >/dev/null; then
+    PYTHON="python3"
+elif command -v python >/dev/null; then
+    PYTHON="python"
+else
+    echo "Python no encontrado. Instálalo primero."
+    exit 1
+fi
+
+if command -v ssh >/dev/null; then
+    TUNNEL_CMD="ssh -R 80:localhost:$PORT nokey@localhost.run"
+elif command -v ngrok >/dev/null; then
+    TUNNEL_CMD="ngrok http $PORT"
+else
+    echo "ssh o ngrok no encontrados. Solo servidor local."
+fi
+
+# --- Iniciar servidor ---
+echo "Iniciando servidor en: $DIR (puerto $PORT)"
+$PYTHON -m http.server "$PORT" > /dev/null 2>&1 & SERVER_PID=$!
 sleep 2
 
-echo "🔗 Creando túnel público..."
-echo "Presiona Ctrl + C para salir cuando termines."
-ssh -R 80:127.0.0.1:$PORT nokey@localhost.run
+# --- Túnel público ---
+if [[ -n "$TUNNEL_CMD" ]]; then
+    echo "Creando túnel público..."
+    echo "Accede desde cualquier lugar. Ctrl+C para detener."
+    echo "----------------------------------------"
+    eval "$TUNNEL_CMD"
+else
+    echo "Sin túnel. Accede desde http://localhost:$PORT"
+fi
 
-# Cuando salgas del túnel:
-echo "🛑 Cerrando servidor local..."
-kill $SERVER_PID
-
-
-
+# --- Limpieza ---
+echo "Cerrando servidor local..."
+kill $SERVER_PID 2>/dev/null || true
+wait $SERVER_PID 2>/dev/null || true
+echo "¡Listo!"

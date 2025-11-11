@@ -1,4 +1,10 @@
+# Configuración de nano predeterminada universal
 set mouse
 set tabsize 4
 set softwrap
 set autoindent
+set constantshow
+#set linenumbers
+set smarthome
+#set historylog
+#set nohelp
