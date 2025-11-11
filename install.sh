@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Universal Setup Script - Works on Termux, Linux, macOS, WSL
-# by Shadow-TermDev (adaptado por Grok)
+# by Shadow-TermDev
 
 set -e
 
