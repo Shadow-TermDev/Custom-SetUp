@@ -1,91 +1,19 @@
 #!/usr/bin/env bash
-# Universal Setup Script – Works on Termux, Linux, macOS, WSL and proot‑distro
-# by Shadow‑TermDev
+# Custom Setup Script – SOLO TERMUX (ZSH 100% FIJO)
+# v1.4.3-termux-clean
 
 set -e
 
-# -------------------------------------------------------------------------
-# DETECCIÓN DE ENTORNO (CORREGIDA)
-# -------------------------------------------------------------------------
+[[ -z "$TERMUX_VERSION" ]] && { echo "Solo para Termux."; exit 1; }
 
-IS_TERMUX=false
-IS_MAC=false
-IS_WSL=false
-IS_PROOT=false
-IS_ROOT=false
-PKG_MANAGER=""
-PYTHON_CMD=""
-GEM_CMD=""
-PREFIX=""
+PKG_MANAGER="pkg"
+PYTHON_CMD="python"
+PREFIX="/data/data/com.termux/files/usr"
+ZSH_PATH="$PREFIX/bin/zsh"
 
-# ---- proot‑distro -------------------------------------------------------
-if grep -q proot /proc/1/cmdline 2>/dev/null || [[ -n "$PROOT_DISTRO" ]]; then
-    IS_PROOT=true
-fi
-
-# ---- root ---------------------------------------------------------------
-if [[ $(id -u) -eq 0 ]]; then
-    IS_ROOT=true
-fi
-
-# ---- Termux: solo si estamos en el proceso real -------------------------
-if [[ -n "$TERMUX_VERSION" ]] && [[ -d "/data/data/com.termux" ]] && [[ -f "/data/data/com.termux/files/usr/bin/pkg" ]]; then
-    IS_TERMUX=true
-    PKG_MANAGER="pkg"
-    PYTHON_CMD="python"
-    GEM_CMD="gem"
-    PREFIX="/data/data/com.termux/files/usr"
-elif [[ "$(uname)" == "Darwin" ]]; then
-    IS_MAC=true
-    if ! command -v brew >/dev/null; then
-        echo "Instalando Homebrew..." >&2
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" >/dev/null 2>&1
-    fi
-    PKG_MANAGER="brew"
-    PYTHON_CMD="python3"
-    GEM_CMD="gem"
-elif [[ -f /proc/version ]] && grep -qi microsoft /proc/version; then
-    IS_WSL=true
-    PKG_MANAGER="apt"
-    PYTHON_CMD="python3"
-    GEM_CMD="gem"
-else
-    # Linux genérico
-    if command -v apt >/dev/null; then
-        PKG_MANAGER="apt"
-    elif command -v pacman >/dev/null; then
-        PKG_MANAGER="pacman"
-    elif command -v dnf >/dev/null; then
-        PKG_MANAGER="dnf"
-    elif command -v zypper >/dev/null; then
-        PKG_MANAGER="zypper"
-    else
-        echo "Gestor de paquetes no soportado." >&2
-        exit 1
-    fi
-    PYTHON_CMD="python3"
-    GEM_CMD="gem"
-fi
-
-# ---- Instalar timeout en proot (silencioso) -----------------------------
-if [[ "$IS_PROOT" == true ]] && ! command -v timeout >/dev/null; then
-    apt update -qq >/dev/null 2>&1 && apt install -y coreutils >/dev/null 2>&1 || true
-fi
-
-# -------------------------------------------------------------------------
-# FUNCIONES AUXILIARES (SILENCIOSAS)
-# -------------------------------------------------------------------------
-
-msg() {
-    echo -e "\n[#] $1"
-}
-
-spinner="/|\\-/"
-
+msg() { echo -e "\n[#] $1"; }
 show_spinner() {
-    local pid=$1
-    local text=$2
-    local i=0
+    local pid=$1 text=$2 i=0
     while kill -0 $pid 2>/dev/null; do
         i=$(( (i+1) % 4 ))
         printf "\r[ Spinning ] %s ${spinner:$i:1}" "$text"
@@ -93,304 +21,105 @@ show_spinner() {
     done
     printf "\r[ Checkmark ] %s completado.          \n"
 }
+spinner="/|\\-/"
 
 install_pkg() {
-    local pkg=$1
-    local name=${2:-$pkg}
-
-    if command -v "$pkg" >/dev/null 2>&1; then
-        echo "[ Checkmark ] $name ya está instalado."
-        return
-    fi
-
+    local pkg=$1 name=${2:-$pkg}
+    command -v "$pkg" >/dev/null 2>&1 && { echo "[ Checkmark ] $name ya está."; return; }
     msg "Instalando $name..."
-
-    case $PKG_MANAGER in
-        pkg)
-            pkg install -y "$pkg" >/dev/null 2>&1 &
-            ;;
-        apt)
-            if [[ "$IS_PROOT" == true ]] && [[ "$IS_ROOT" == true ]]; then
-                timeout 180 apt install -y "$pkg" >/dev/null 2>&1 &
-            else
-                timeout 180 sudo apt install -y "$pkg" >/dev/null 2>&1 &
-            fi
-            ;;
-        pacman)
-            sudo pacman -Sy --noconfirm "$pkg" >/dev/null 2>&1 &
-            ;;
-        dnf)
-            sudo dnf install -y "$pkg" >/dev/null 2>&1 &
-            ;;
-        zypper)
-            sudo zypper install -y --no-confirm "$pkg" >/dev/null 2>&1 &
-            ;;
-        brew)
-            brew install "$pkg" >/dev/null 2>&1 &
-            ;;
-    esac
-
+    pkg install -y "$pkg" >/dev/null 2>&1 &
     show_spinner $! "Instalación de $name"
 }
 
 install_pip() {
     local pkg=$1
-    if $PYTHON_CMD -m pip show "$pkg" >/dev/null 2>&1; then
-        echo "[ Checkmark ] $pkg (pip) ya está instalado."
-    else
-        msg "Instalando $pkg via pip..."
-        $PYTHON_CMD -m pip install --user "$pkg" >/dev/null 2>&1 &
-        show_spinner $! "Instalación de $pkg (pip)"
-    fi
+    $PYTHON_CMD -m pip show "$pkg" >/dev/null 2>&1 && { echo "[ Checkmark ] $pkg (pip) ya está."; return; }
+    msg "Instalando $pkg via pip..."
+    $PYTHON_CMD -m pip install --user "$pkg" >/dev/null 2>&1 &
+    show_spinner $! "Instalación de $pkg"
 }
 
 install_gem() {
     local pkg=$1
-    if command -v "$pkg" >/dev/null 2>&1; then
-        echo "[ Checkmark ] $pkg (gem) ya está instalado."
-    else
-        msg "Instalando $pkg via gem..."
-        $GEM_CMD install "$pkg" --no-document >/dev/null 2>&1 &
-        show_spinner $! "Instalación de $pkg (gem)"
-    fi
+    command -v "$pkg" >/dev/null 2>&1 && { echo "[ Checkmark ] $pkg (gem) ya está."; return; }
+    msg "Instalando $pkg via gem..."
+    gem install "$pkg" --no-document >/dev/null 2>&1 &
+    show_spinner $! "Instalación de $pkg"
 }
-
-# -------------------------------------------------------------------------
-# ACTUALIZACIÓN DEL SISTEMA (SILENCIOSA)
-# -------------------------------------------------------------------------
 
 clear
-echo "[ # ] Actualizando sistema..."
+echo "[ # ] Actualizando..."
+pkg update -y >/dev/null 2>&1 &
+show_spinner $! "Actualizando"
 
-update_system() {
-    case $PKG_MANAGER in
-        pkg)
-            pkg update -y >/dev/null 2>&1
-            ;;
-        apt)
-            if [[ "$IS_PROOT" == true ]] && [[ "$IS_ROOT" == true ]]; then
-                timeout 60 apt update -y >/dev/null 2>&1 || true
-            else
-                timeout 60 sudo apt update -y >/dev/null 2>&1 || true
-            fi
-            ;;
-        pacman) sudo pacman -Sy --noconfirm >/dev/null 2>&1 ;;
-        dnf) sudo dnf check-update >/dev/null 2>&1 ;;
-        zypper) sudo zypper refresh --no-confirm >/dev/null 2>&1 ;;
-        brew) brew update >/dev/null 2>&1 ;;
-    esac
-}
-
-update_system &
-show_spinner $! "Actualizando sistema"
-wait $!
-
-# -------------------------------------------------------------------------
-# PAQUETES BÁSICOS (SILENCIOSOS)
-# -------------------------------------------------------------------------
-
-install_pkg git "Git"
-install_pkg python3 "Python" || install_pkg python "Python"
-install_pkg ruby "Ruby"
-install_pkg figlet "Figlet"
-install_pkg bc "BC"
-install_pkg curl "Curl"
+install_pkg git
+install_pkg python
+install_pkg ruby
+install_pkg figlet
+install_pkg bc
+install_pkg curl
+install_pkg zsh "Zsh"
 
 install_pip pyfiglet
-
-if [[ "$IS_MAC" == true ]] || [[ "$IS_TERMUX" == true ]]; then
-    install_gem lolcat
-else
-    install_pkg lolcat "lolcat" 2>/dev/null || install_gem lolcat
-fi
-
-# -------------------------------------------------------------------------
-# VISUAL
-# -------------------------------------------------------------------------
-
-clear
-if command -v pyfiglet >/dev/null && command -v lolcat >/dev/null; then
-    figlet_text=$(pyfiglet "Custom-SetUp" 2>/dev/null)
-    echo "$figlet_text" | head -n -1 | lolcat
-    last_line=$(echo "$figlet_text" | tail -n 1)
-    echo -e "$(echo "$last_line" | lolcat -f) v1.4.0"
-else
-    echo "=== Custom-SetUp v1.4.0 ==="
-fi
-
-if command -v lolcat >/dev/null; then
-    echo "Entorno base listo, iniciando instalación..." | lolcat
-else
-    echo "Entorno base listo, iniciando instalación..."
-fi
-
-# -------------------------------------------------------------------------
-# DIRECTORIOS
-# -------------------------------------------------------------------------
-
-msg "Creando carpetas de proyectos..."
-mkdir -p ~/Practice_Projects/{Python_Projects,Nodejs_Projects,Java_Projects,C++_Projects,Ruby_Projects,Web_Projects} 2>/dev/null || true
-echo "[ Checkmark ] Directorios creados."
-
-# -------------------------------------------------------------------------
-# OH MY ZSH (Instalación segura sin cortar el script)
-# -------------------------------------------------------------------------
-
-ZSH="$HOME/.oh-my-zsh"
-
-msg "Instalando Oh My Zsh (instalación segura)..."
-
-if [ ! -d "$ZSH" ]; then
-    git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git "$ZSH" >/dev/null 2>&1
-
-    # Copiar plantilla original
-    cp "$ZSH/templates/zshrc.zsh-template" "$HOME/.zshrc"
-
-    echo "[ Checkmark ] Oh My Zsh instalado manualmente."
-else
-    echo "[ Checkmark ] Oh My Zsh ya está instalado."
-fi
-
-# -------------------------------------------------------------------------
-# PLUGINS
-# -------------------------------------------------------------------------
-
-msg "Instalando plugins de Zsh..."
-
-PLUG_DIR="$ZSH/custom/plugins"
-
-for plugin in zsh-autosuggestions zsh-syntax-highlighting; do
-    if [ ! -d "$PLUG_DIR/$plugin" ]; then
-        git clone https://github.com/zsh-users/$plugin "$PLUG_DIR/$plugin" >/dev/null 2>&1
-    fi
-done
-
-echo "[ Checkmark ] Plugins instalados."
-
-# -------------------------------------------------------------------------
-# Añadir plugins al .zshrc
-# -------------------------------------------------------------------------
-
-msg "Activando plugins en .zshrc..."
-
-sed -i 's/plugins=(git)/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/' "$HOME/.zshrc"
-
-echo "[ Checkmark ] Plugins activados."
-
-# -------------------------------------------------------------------------
-# CONFIGURACIONES
-# -------------------------------------------------------------------------
-
-msg "Copiando configuraciones..."
-CONFIG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/config"
-
-[ -f "$CONFIG_DIR/copia_zshrc.txt" ] && cp "$CONFIG_DIR/copia_zshrc.txt" "$HOME/.zshrc" >/dev/null 2>&1
-[ -f "$CONFIG_DIR/copia_nanorc.txt" ] && cp "$CONFIG_DIR/copia_nanorc.txt" "$HOME/.nanorc" >/dev/null 2>&1
-echo "[ Checkmark ] Configuraciones copiadas."
-
-# -------------------------------------------------------------------------
-# LIMPIAR MOTD (solo Termux)
-# -------------------------------------------------------------------------
-
-if [[ "$IS_TERMUX" == true ]] && [[ -f "$PREFIX/etc/motd" ]]; then
-    msg "Limpiando MOTD de Termux..."
-    > "$PREFIX/etc/motd" 2>/dev/null
-    echo "[ Checkmark ] MOTD limpiado."
-fi
-
-# -------------------------------------------------------------------------
-# WEBSERVE
-# -------------------------------------------------------------------------
-
-read -p "[ # ] ¿Desea instalar el comando 'webserve'? [Y/n]: " install_webserve
-if [[ "$install_webserve" =~ ^[Yy]$ || -z "$install_webserve" ]]; then
-    BIN_DIR="$HOME/.local/bin"
-    mkdir -p "$BIN_DIR" 2>/dev/null
-    if [[ "$IS_TERMUX" == true ]]; then
-        cp "$CONFIG_DIR/copia_webserve.txt" "$PREFIX/bin/webserve" >/dev/null 2>&1
-        chmod +x "$PREFIX/bin/webserve"
-    else
-        cp "$CONFIG_DIR/copia_webserve.txt" "$BIN_DIR/webserve" >/dev/null 2>&1
-        chmod +x "$BIN_DIR/webserve"
-        [[ ":$PATH:" != *":$BIN_DIR:"* ]] && echo "export PATH=\"\$PATH:$BIN_DIR\"" >> "$HOME/.zshrc"
-    fi
-    echo "[ Checkmark ] webserve instalado."
-else
-    echo "[ Cross ] webserve omitido."
-fi
-
-# -------------------------------------------------------------------------
-# LENGUAJES
-# -------------------------------------------------------------------------
-
-msg "Configurando lenguajes..."
-
-declare -A languages=(
-    ["PHP"]="php"
-    ["Node.js"]="nodejs"
-    ["Java"]="openjdk-17 default-jdk"
-    ["clang (C/C++)"]="clang gcc"
-    ["Ruby"]="ruby"
-)
-
-for name in "${!languages[@]}"; do
-    pkgs="${languages[$name]}"
-    read -p "[#] ¿Instalar $name? [Y/n]: " answer
-    if [[ "$answer" =~ ^[Yy]$ || -z "$answer" ]]; then
-        for pkg in $pkgs; do
-            install_pkg "$pkg" "$name"
-        done
-    else
-        echo "[ Cross ] $name omitido."
-    fi
-done
-
-# -------------------------------------------------------------------------
-# FINAL
-# -------------------------------------------------------------------------
+install_gem lolcat
 
 clear
 if command -v pyfiglet >/dev/null; then
-    $PYTHON_CMD -m pyfiglet "Setup Complete" 2>/dev/null | lolcat 2>/dev/null || echo "=== Setup Complete ==="
+    pyfiglet "Custom-SetUp" | lolcat
+    echo "v1.4.3-termux" | lolcat -f
 else
-    echo "=== Setup Complete ==="
+    echo "=== Custom-SetUp v1.4.3 ==="
 fi
 
-echo "Instalación finalizada."
+msg "Creando carpetas..."
+mkdir -p ~/Practice_Projects/{Python_Projects,Nodejs_Projects,Java_Projects,C++_Projects,Ruby_Projects,Web_Projects} 2>/dev/null
+
+ZSH="$HOME/.oh-my-zsh"
+if [ ! -d "$ZSH" ]; then
+    msg "Instalando Oh My Zsh..."
+    git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git "$ZSH" >/dev/null 2>&1
+    cp "$ZSH/templates/zshrc.zsh-template" "$HOME/.zshrc"
+fi
+
+PLUG_DIR="$ZSH/custom/plugins"
+for p in zsh-autosuggestions zsh-syntax-highlighting; do
+    [ ! -d "$PLUG_DIR/$p" ] && git clone https://github.com/zsh-users/$p "$PLUG_DIR/$p" >/dev/null 2>&1
+done
+
+sed -i 's/plugins=(git)/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/' "$HOME/.zshrc" 2>/dev/null || \
+    echo 'plugins=(git zsh-autosuggestions zsh-syntax-highlighting)' >> "$HOME/.zshrc"
+
+CONFIG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/config"
+[ -f "$CONFIG_DIR/copia_zshrc.txt" ] && cp "$CONFIG_DIR/copia_zshrc.txt" "$HOME/.zshrc"
+[ -f "$CONFIG_DIR/copia_nanorc.txt" ] && cp "$CONFIG_DIR/copia_nanorc.txt" "$HOME/.nanorc"
+
+[ -f "$PREFIX/etc/motd" ] && > "$PREFIX/etc/motd"
+
+read -p "[ # ] ¿Instalar 'webserve'? [Y/n]: " ans
+if [[ "$ans" =~ ^[Yy]$ || -z "$ans" ]]; then
+    [ -f "$CONFIG_DIR/copia_webserve.txt" ] && cp "$CONFIG_DIR/copia_webserve.txt" "$PREFIX/bin/webserve" && chmod +x "$PREFIX/bin/webserve" && echo "[ Checkmark ] webserve instalado."
+fi
+
+msg "Lenguajes..."
+declare -A langs=( ["PHP"]="php" ["Node.js"]="nodejs" ["Java"]="openjdk-17" ["C/C++"]="clang" ["Ruby"]="ruby" )
+for name in "${!langs[@]}"; do
+    read -p "[#] ¿Instalar $name? [Y/n]: " ans
+    [[ "$ans" =~ ^[Yy]$ || -z "$ans" ]] && for pkg in ${langs[$name]}; do install_pkg "$pkg" "$name"; done
+done
+
+# ZSH POR DEFECTO (RUTA COMPLETA)
+msg "Configurando Zsh como shell predeterminado..."
+mkdir -p ~/.termux
+printf "shell=%s\n" "$ZSH_PATH" > ~/.termux/termux.properties
+echo "[ Checkmark ] Zsh configurado: $ZSH_PATH"
+
+clear
+pyfiglet "CIERRA Y ABRE" 2>/dev/null | lolcat 2>/dev/null || echo "=== CIERRA Y ABRE ==="
 echo
-
-# ---- Asegurar zsh -------------------------------------------------------
-if ! command -v zsh >/dev/null; then
-    msg "Instalando zsh..."
-    install_pkg zsh "Zsh"
-fi
-
-# ---- Cambiar shell (solo fuera de proot) -------------------------------
-if command -v chsh >/dev/null && [[ "$IS_PROOT" == false ]]; then
-    chsh -s "$(which zsh)" "$USER" 2>/dev/null || true
-fi
-
-# ---- Mensaje final ------------------------------------------------------
 echo "=============================================="
-if [[ "$IS_PROOT" == true ]]; then
-    if [[ "$IS_ROOT" == true ]]; then
-        echo "Estás como root. Ejecuta:"
-        echo "   zsh"
-    else
-        echo "Ejecuta:"
-        echo "   proot-distro login debian --user $USER --shell zsh"
-    fi
-else
-    echo "Reinicia tu terminal o escribe: zsh"
-fi
+echo "   CIERRA TERMUX (Salir) → LUEGO ÁBRELO       "
+echo "   Zsh + Oh My Zsh SE CARGARÁ AUTOMÁTICO      "
 echo "=============================================="
-echo
+sleep 5
 
-sleep 2
-
-# ---- Reiniciar shell ----------------------------------------------------
-if command -v zsh >/dev/null; then
-    exec zsh -l
-else
-    exec bash -l
-fi
+exec "$ZSH_PATH" -l
