@@ -233,26 +233,49 @@ mkdir -p ~/Practice_Projects/{Python_Projects,Nodejs_Projects,Java_Projects,C++_
 echo "[ Checkmark ] Directorios creados."
 
 # -------------------------------------------------------------------------
-# OH MY ZSH (SILENCIOSO)
+# OH MY ZSH (Instalación segura sin cortar el script)
 # -------------------------------------------------------------------------
 
-ZSH="${ZSH:-$HOME/.oh-my-zsh}"
+ZSH="$HOME/.oh-my-zsh"
 
-msg "Instalando Oh My Zsh..."
+msg "Instalando Oh My Zsh (instalación segura)..."
+
 if [ ! -d "$ZSH" ]; then
-    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended >/dev/null 2>&1
-    echo "[ Checkmark ] Oh My Zsh instalado."
+    git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git "$ZSH" >/dev/null 2>&1
+
+    # Copiar plantilla original
+    cp "$ZSH/templates/zshrc.zsh-template" "$HOME/.zshrc"
+
+    echo "[ Checkmark ] Oh My Zsh instalado manualmente."
 else
     echo "[ Checkmark ] Oh My Zsh ya está instalado."
 fi
 
+# -------------------------------------------------------------------------
+# PLUGINS
+# -------------------------------------------------------------------------
+
 msg "Instalando plugins de Zsh..."
+
+PLUG_DIR="$ZSH/custom/plugins"
+
 for plugin in zsh-autosuggestions zsh-syntax-highlighting; do
-    if [ ! -d "$ZSH/custom/plugins/$plugin" ]; then
-        git clone "https://github.com/zsh-users/$plugin" "$ZSH/custom/plugins/$plugin" >/dev/null 2>&1
+    if [ ! -d "$PLUG_DIR/$plugin" ]; then
+        git clone https://github.com/zsh-users/$plugin "$PLUG_DIR/$plugin" >/dev/null 2>&1
     fi
 done
+
 echo "[ Checkmark ] Plugins instalados."
+
+# -------------------------------------------------------------------------
+# Añadir plugins al .zshrc
+# -------------------------------------------------------------------------
+
+msg "Activando plugins en .zshrc..."
+
+sed -i 's/plugins=(git)/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/' "$HOME/.zshrc"
+
+echo "[ Checkmark ] Plugins activados."
 
 # -------------------------------------------------------------------------
 # CONFIGURACIONES
