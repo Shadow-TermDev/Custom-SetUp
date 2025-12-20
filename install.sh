@@ -86,7 +86,7 @@ simple_banner() {
     echo "╔═══════════════════════════════════════════════════════╗"
     echo "║                                                       ║"
     echo "║              CUSTOM-SETUP v2.0.0                      ║"
-    echo "║        Ultra Aesthetic Configuration for Termux      ║"
+    echo "║        Ultra Aesthetic Configuration for Termux       ║"
     echo "║                                                       ║"
     echo "╚═══════════════════════════════════════════════════════╝"
     echo -e "${NC}"
