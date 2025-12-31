@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ╔═══════════════════════════════════════════════════════════╗
-# ║   Custom-SetUp v2.0.0 – Ultra Aesthetic for Termux       ║
-# ║   by Shadow-TermDev | 100% Zsh + Oh My Zsh               ║
+# ║   Custom-SetUp v2.0.0 – Ultra Aesthetic for Termux        ║
+# ║   by Shadow-TermDev | 100% Zsh + Oh My Zsh                ║
 # ╚═══════════════════════════════════════════════════════════╝
 
 set -e
